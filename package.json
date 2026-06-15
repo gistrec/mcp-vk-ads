@@ -1,0 +1,52 @@
+{
+  "name": "mcp-vk-ads",
+  "version": "1.0.0",
+  "description": "MCP server for the VK Ads (VK Реклама) API — manage ad plans, ad groups, banners and pull statistics from AI agents.",
+  "type": "module",
+  "bin": {
+    "mcp-vk-ads": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "smoke": "node --import tsx src/smoke.ts",
+    "test": "node --import tsx --test $(find src -name '*.test.ts')",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm test"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "vk",
+    "vk-ads",
+    "vk-reklama",
+    "advertising"
+  ],
+  "license": "MIT",
+  "author": "Aleksandr Kovalko",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gistrec/mcp-vk-ads.git"
+  },
+  "homepage": "https://github.com/gistrec/mcp-vk-ads#readme",
+  "bugs": {
+    "url": "https://github.com/gistrec/mcp-vk-ads/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^5.7.0"
+  }
+}
