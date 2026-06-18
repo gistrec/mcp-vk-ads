@@ -133,28 +133,48 @@ export class VkAdsClient {
   /**
    * Reads a list endpoint, following offset/count to fetch every page and
    * merging the `items` arrays, so large accounts are not silently truncated.
-   * Bounded by maxPages.
+   *
+   * Pages at MAX_PAGE_LIMIT regardless of a caller `limit` (which would otherwise
+   * shrink capacity to limit×maxPages) → deterministic MAX_PAGE_LIMIT × maxPages.
+   * Carries through `total` (statistics: the summary across ALL objects — same on
+   * every page). If the maxPages cap is hit with more remaining, flags `_truncated`
+   * so the cutoff is explicit, not a silent items.length < count.
    */
   async getAll<T = unknown>(
     path: string,
     query: Record<string, QueryValue> = {},
     maxPages = 100,
-  ): Promise<ListPage<T>> {
-    const limit = clampLimit(Number(query.limit ?? MAX_PAGE_LIMIT));
+  ): Promise<ListPage<T> & { total?: unknown; _truncated?: boolean; _truncatedNote?: string }> {
+    const limit = MAX_PAGE_LIMIT;
     let offset = Number(query.offset ?? 0);
     const items: T[] = [];
     let count = 0;
+    let total: unknown;
+    let truncated = false;
 
     for (let page = 0; page < maxPages; page++) {
-      const data = await this.get<ListPage<T> & { offset?: number }>(path, { ...query, limit, offset });
+      const data = await this.get<ListPage<T> & { total?: unknown }>(path, { ...query, limit, offset });
       const batch = data.items ?? [];
       items.push(...batch);
       count = typeof data.count === "number" ? data.count : items.length;
+      if (data.total !== undefined) total = data.total;
       offset += batch.length;
       if (batch.length === 0 || batch.length < limit || offset >= count) break;
+      if (page === maxPages - 1) truncated = true; // more remains but the cap stopped us
     }
 
-    return { count, items };
+    const result: ListPage<T> & { total?: unknown; _truncated?: boolean; _truncatedNote?: string } = {
+      count,
+      items,
+    };
+    if (total !== undefined) result.total = total;
+    if (truncated) {
+      result._truncated = true;
+      result._truncatedNote =
+        `Stopped at the ${maxPages}-page cap; returned ${items.length} of ${count} objects. ` +
+        "Filter by ids or narrow the period to get the rest.";
+    }
+    return result;
   }
 }
 

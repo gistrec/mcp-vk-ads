@@ -113,26 +113,45 @@ test("request() formats an OAuth-style error body", async () => {
   }
 });
 
-test("getAll() merges pages by following offset until count is reached", async () => {
+test("getAll() pages at MAX_PAGE_LIMIT, merges items and carries `total`", async () => {
   let calls = 0;
-  const mock = mockFetch(() => {
+  const mock = mockFetch((url) => {
     calls++;
-    if (calls === 1) {
-      return new Response(JSON.stringify({ count: 3, items: [{ id: 1 }, { id: 2 }] }), { status: 200 });
+    const offset = Number(new URL(url).searchParams.get("offset"));
+    if (offset === 0) {
+      const items = Array.from({ length: MAX_PAGE_LIMIT }, (_, i) => ({ id: i }));
+      return new Response(
+        JSON.stringify({ count: MAX_PAGE_LIMIT + 1, items, total: { base: { spent: 99 } } }),
+        { status: 200 },
+      );
     }
-    return new Response(JSON.stringify({ count: 3, items: [{ id: 3 }] }), { status: 200 });
+    return new Response(JSON.stringify({ count: MAX_PAGE_LIMIT + 1, items: [{ id: 999 }] }), {
+      status: 200,
+    });
   });
   try {
-    const client = makeClient();
-    const result = await client.getAll<{ id: number }>("v2/ad_plans.json", { limit: 2 });
-
-    assert.deepEqual(result.items, [{ id: 1 }, { id: 2 }, { id: 3 }]);
-    assert.equal(result.count, 3);
+    // caller limit:2 is ignored for the autoPaginate page size (deterministic capacity).
+    const result = await makeClient().getAll<{ id: number }>("v2/ad_plans.json", { limit: 2 });
+    assert.equal(result.items.length, MAX_PAGE_LIMIT + 1);
+    assert.equal(result.count, MAX_PAGE_LIMIT + 1);
+    assert.deepEqual(result.total, { base: { spent: 99 } }); // grand total carried through
     assert.equal(calls, 2);
+    assert.equal(new URL(mock.calls[0].url).searchParams.get("limit"), String(MAX_PAGE_LIMIT));
+    assert.equal(new URL(mock.calls[1].url).searchParams.get("offset"), String(MAX_PAGE_LIMIT));
+  } finally {
+    mock.restore();
+  }
+});
 
-    const secondUrl = new URL(mock.calls[1].url);
-    assert.equal(secondUrl.searchParams.get("offset"), "2");
-    assert.equal(secondUrl.searchParams.get("limit"), "2");
+test("getAll() flags truncation loudly at the maxPages cap", async () => {
+  const mock = mockFetch(() => {
+    const items = Array.from({ length: MAX_PAGE_LIMIT }, (_, i) => ({ id: i }));
+    return new Response(JSON.stringify({ count: 100000, items }), { status: 200 });
+  });
+  try {
+    const result = await makeClient().getAll("v2/banners.json", {}, 2);
+    assert.equal((result as { _truncated?: boolean })._truncated, true);
+    assert.match((result as { _truncatedNote?: string })._truncatedNote ?? "", /of 100000/);
   } finally {
     mock.restore();
   }
