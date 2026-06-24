@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { VkAdsClient } from "../client.js";
-import { ACTION_TO_STATUS, compact, csv, fail, isoDate, ok, setStatusForIds } from "./util.js";
+import { ACTION_TO_STATUS, compact, csv, fail, isoDate, ok, READ_ONLY, setStatusForIds, WRITE_CREATE, WRITE_DELETE, WRITE_UPDATE } from "./util.js";
 
 const DEFAULT_FIELDS = [
   "id",
@@ -27,6 +27,7 @@ export function registerAdGroupTools(server: McpServer, client: VkAdsClient): vo
     "list_ad_groups",
     {
       title: "List ad groups",
+      annotations: READ_ONLY,
       description:
         "Lists ad groups with optional filtering by id, parent ad plan and status. Money fields are in the account currency; `targetings` holds the geo/demographic/interest targeting structure.",
       inputSchema: {
@@ -72,6 +73,7 @@ export function registerAdGroupTools(server: McpServer, client: VkAdsClient): vo
     "create_ad_group",
     {
       title: "Create ad group",
+      annotations: WRITE_CREATE,
       description:
         "Creates an ad group inside an ad plan. Targeting goes in `targetings` (e.g. {\"geo\":{\"regions\":[188]},\"age\":{\"age_list\":[25,26]}}). Money fields are in account currency. Use `extra` for any other field.",
       inputSchema: {
@@ -120,6 +122,7 @@ export function registerAdGroupTools(server: McpServer, client: VkAdsClient): vo
     "update_ad_group",
     {
       title: "Update ad group",
+      annotations: WRITE_UPDATE,
       description:
         "Updates an ad group's name, budgets, bid cap, dates or targeting. Money fields are in account currency. Use ad_group_action to change status.",
       inputSchema: {
@@ -159,6 +162,7 @@ export function registerAdGroupTools(server: McpServer, client: VkAdsClient): vo
     "ad_group_action",
     {
       title: "Ad group action",
+      annotations: WRITE_DELETE,
       description:
         "Changes the lifecycle status of ad groups by id: activate (status=active), stop (status=blocked) or delete (status=deleted).",
       inputSchema: {

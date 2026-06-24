@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { VkAdsClient } from "../client.js";
-import { ACTION_TO_STATUS, compact, csv, fail, ok, setStatusForIds } from "./util.js";
+import { ACTION_TO_STATUS, compact, csv, fail, ok, READ_ONLY, setStatusForIds, WRITE_CREATE, WRITE_DELETE, WRITE_UPDATE } from "./util.js";
 
 const DEFAULT_FIELDS = [
   "id",
@@ -25,6 +25,7 @@ export function registerBannerTools(server: McpServer, client: VkAdsClient): voi
     "list_banners",
     {
       title: "List banners (ads)",
+      annotations: READ_ONLY,
       description:
         "Lists banners (the VK Ads creative/ad object) with optional filtering by id, parent ad group and status. moderation_status (pending/allowed/banned) and delivery show why an ad is or isn't showing.",
       inputSchema: {
@@ -67,6 +68,7 @@ export function registerBannerTools(server: McpServer, client: VkAdsClient): voi
     "create_banner",
     {
       title: "Create banner (ad)",
+      annotations: WRITE_CREATE,
       description:
         "Creates a banner inside an ad group. Creative content references uploaded media via `content`, ad copy goes in `textblocks` and links in `urls`. These structures are sent verbatim; consult the VK Ads docs for the exact shape per ad format.",
       inputSchema: {
@@ -103,6 +105,7 @@ export function registerBannerTools(server: McpServer, client: VkAdsClient): voi
     "update_banner",
     {
       title: "Update banner (ad)",
+      annotations: WRITE_UPDATE,
       description:
         "Updates a banner's name, text blocks or links. Use banner_action to change status. Structures are sent verbatim.",
       inputSchema: {
@@ -131,6 +134,7 @@ export function registerBannerTools(server: McpServer, client: VkAdsClient): voi
     "banner_action",
     {
       title: "Banner action",
+      annotations: WRITE_DELETE,
       description:
         "Changes the lifecycle status of banners by id: activate (status=active), stop (status=blocked) or delete (status=deleted).",
       inputSchema: {

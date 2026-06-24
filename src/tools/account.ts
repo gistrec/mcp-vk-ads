@@ -1,13 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { VkAdsClient } from "../client.js";
-import { fail, ok } from "./util.js";
+import { fail, ok, READ_ONLY } from "./util.js";
 
 export function registerAccountTools(server: McpServer, client: VkAdsClient): void {
   server.registerTool(
     "get_user_info",
     {
       title: "Get account info",
+      annotations: READ_ONLY,
       description:
         "Returns information about the current VK Ads account (user.json), including additional_info.client_name. Use it to confirm which advertiser account the token points at.",
       inputSchema: {
@@ -33,6 +34,7 @@ export function registerAccountTools(server: McpServer, client: VkAdsClient): vo
     "get_throttling",
     {
       title: "Get API rate limits",
+      annotations: READ_ONLY,
       description:
         "Returns the current VK Ads request limits and remaining budget (throttling.json), so you can avoid hitting the rate limit.",
       inputSchema: {},
@@ -51,6 +53,7 @@ export function registerAccountTools(server: McpServer, client: VkAdsClient): vo
     "get_regions",
     {
       title: "Get regions",
+      annotations: READ_ONLY,
       description:
         "Lists VK Ads geo regions (id, name, type), optionally filtered by a name substring. Region ids are needed for ad group geo targeting.",
       inputSchema: {

@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { HttpMethod } from "../client.js";
 import type { VkAdsClient } from "../client.js";
-import { fail, ok } from "./util.js";
+import { fail, ok, WRITE_DELETE } from "./util.js";
 
 /** Only GET reads data; POST and DELETE mutate the account. */
 export function isReadMethod(method: string): boolean {
@@ -14,6 +14,8 @@ export function registerRawTool(server: McpServer, client: VkAdsClient): void {
     "raw_request",
     {
       title: "Raw VK Ads API call",
+      // Escape hatch: can POST/DELETE, so flag it destructive.
+      annotations: WRITE_DELETE,
       description:
         'Escape hatch to call any VK Ads API endpoint directly (e.g. path "v2/ad_plans.json", method GET). Use this for endpoints that have no dedicated tool. `query` becomes the query string; `body` is sent as JSON for POST. GET runs freely; POST and DELETE are writes and require confirmWrite=true.',
       inputSchema: {

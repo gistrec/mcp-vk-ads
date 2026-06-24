@@ -24,6 +24,36 @@ export function compact<T extends Record<string, unknown>>(obj: T): T {
   ) as T;
 }
 
+/**
+ * MCP tool annotations — hints the consuming client can use to gate or label a
+ * tool (e.g. auto-approve reads, warn before writes). Every tool here talks to
+ * the remote VK Ads API, so openWorldHint is always true.
+ *
+ *   READ_ONLY    — get/list tools; never mutate the account.
+ *   WRITE_CREATE — create tools; introduce new objects.
+ *   WRITE_UPDATE — update tools; re-applying the same input is idempotent.
+ *   WRITE_DELETE — *_action tools (can set status=deleted) and raw_request.
+ */
+export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
+export const WRITE_CREATE = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
+export const WRITE_UPDATE = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
+export const WRITE_DELETE = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
 /** Joins a list into a comma-separated filter value, or undefined when empty. */
 export function csv(values?: Array<string | number>): string | undefined {
   return values && values.length ? values.join(",") : undefined;

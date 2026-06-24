@@ -1,8 +1,19 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { VkAdsClient } from "./client.js";
 import { loadConfig } from "./config.js";
+
+/** Reads the package version so the server reports its real version to MCP clients. */
+function readVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 import { registerAccountTools } from "./tools/account.js";
 import { registerAdPlanTools } from "./tools/adPlans.js";
 import { registerAdGroupTools } from "./tools/adGroups.js";
@@ -16,7 +27,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "mcp-vk-ads",
-    version: "1.0.0",
+    version: readVersion(),
   });
 
   registerAccountTools(server, client);

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { VkAdsClient } from "../client.js";
-import { compact, csv, fail, isoDate, ok } from "./util.js";
+import { compact, csv, fail, isoDate, ok, READ_ONLY } from "./util.js";
 
 const ENTITIES = ["ad_plans", "ad_groups", "banners"] as const;
 const PERIODS = ["day", "week", "month", "summary"] as const;
@@ -11,6 +11,7 @@ export function registerStatisticsTools(server: McpServer, client: VkAdsClient):
     "get_statistics",
     {
       title: "Get statistics",
+      annotations: READ_ONLY,
       description:
         "Fetches performance statistics from the VK Ads v3 statistics service for ad plans, ad groups or banners. By default the grouping is `summary` — one aggregated row per object over the whole period; use day/week/month ONLY for daily dynamics or trend questions (each adds a row per object per period). Rank objects server-side with sortBy (e.g. base.spent) + order; the response also carries `total` — the summary across ALL objects for the period (use it for «сколько всего», no need to sum rows). Metrics live under `base` (shows, clicks, spent, ...); spent is in account currency.",
       inputSchema: {
