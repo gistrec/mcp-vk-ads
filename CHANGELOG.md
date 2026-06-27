@@ -33,6 +33,6 @@
   и lifecycle-действия (activate/stop/delete), статистика, справочники (регионы),
   `raw_request` (escape hatch на любой эндпойнт), пагинация (offset + авто по offset/count).
 
-[1.1.0]: https://github.com/gistrec/mcp-vk-ads/compare/v1.0.1...v1.1.0
-[1.0.1]: https://github.com/gistrec/mcp-vk-ads/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/gistrec/mcp-vk-ads/releases/tag/v1.0.0
+[1.1.0]: https://github.com/askads/mcp-vk-ads/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/askads/mcp-vk-ads/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/askads/mcp-vk-ads/releases/tag/v1.0.0

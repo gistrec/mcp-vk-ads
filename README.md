@@ -1,7 +1,7 @@
 # VK Ads MCP
 
 [![npm](https://img.shields.io/npm/v/mcp-vk-ads)](https://www.npmjs.com/package/mcp-vk-ads)
-[![CI](https://github.com/gistrec/mcp-vk-ads/actions/workflows/ci.yml/badge.svg)](https://github.com/gistrec/mcp-vk-ads/actions/workflows/ci.yml)
+[![CI](https://github.com/askads/mcp-vk-ads/actions/workflows/ci.yml/badge.svg)](https://github.com/askads/mcp-vk-ads/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 MCP-сервер для **VK Ads (VK Реклама)**: управляйте рекламой из Claude, Cursor, Codex и других AI-клиентов на естественном языке.
@@ -137,7 +137,7 @@ VK Ads API использует OAuth2, и — в отличие от Яндек
 | `VK_ADS_MAX_RETRIES` | нет | `3` | Повторы при временных ошибках (429, 5xx). |
 | `VK_ADS_API_BASE` | нет | `https://ads.vk.com/api` | Корень API (без версии). |
 
-Полный список инструментов — в [docs/TOOLS.md](https://github.com/gistrec/mcp-vk-ads/blob/main/docs/TOOLS.md).
+Полный список инструментов — в [docs/TOOLS.md](https://github.com/askads/mcp-vk-ads/blob/main/docs/TOOLS.md).
 
 ## Требования
 
@@ -152,8 +152,8 @@ VK Ads API использует OAuth2, и — в отличие от Яндек
 
 ## Документация
 
-- [Все инструменты](https://github.com/gistrec/mcp-vk-ads/blob/main/docs/TOOLS.md) — полный список с описанием.
-- [Разработка](https://github.com/gistrec/mcp-vk-ads/blob/main/docs/DEVELOPMENT.md) — сборка, тесты, smoke-проверка.
+- [Все инструменты](https://github.com/askads/mcp-vk-ads/blob/main/docs/TOOLS.md) — полный список с описанием.
+- [Разработка](https://github.com/askads/mcp-vk-ads/blob/main/docs/DEVELOPMENT.md) — сборка, тесты, smoke-проверка.
 
 ## Поддержка
 

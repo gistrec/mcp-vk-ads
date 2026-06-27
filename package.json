@@ -34,11 +34,11 @@
   "author": "Aleksandr Kovalko",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gistrec/mcp-vk-ads.git"
+    "url": "git+https://github.com/askads/mcp-vk-ads.git"
   },
-  "homepage": "https://github.com/gistrec/mcp-vk-ads#readme",
+  "homepage": "https://github.com/askads/mcp-vk-ads#readme",
   "bugs": {
-    "url": "https://github.com/gistrec/mcp-vk-ads/issues"
+    "url": "https://github.com/askads/mcp-vk-ads/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
