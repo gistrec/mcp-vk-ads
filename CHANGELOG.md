@@ -5,6 +5,12 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 проект придерживается [семантического версионирования](https://semver.org/lang/ru/).
 
+## [1.1.1] — 2026-06-27
+
+### Изменено
+- Репозиторий переехал в организацию `askads`: обновлены ссылки (`repository`/`homepage`/
+  `bugs`, README, CHANGELOG). Код пакета не изменился.
+
 ## [1.1.0] — 2026-06-24
 
 ### Добавлено
@@ -33,6 +39,7 @@
   и lifecycle-действия (activate/stop/delete), статистика, справочники (регионы),
   `raw_request` (escape hatch на любой эндпойнт), пагинация (offset + авто по offset/count).
 
+[1.1.1]: https://github.com/askads/mcp-vk-ads/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/askads/mcp-vk-ads/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/askads/mcp-vk-ads/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/askads/mcp-vk-ads/releases/tag/v1.0.0
