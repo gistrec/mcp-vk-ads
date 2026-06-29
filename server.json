@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.askads/mcp-vk-ads",
-  "title": "VK Ads",
+  "title": "VK Ads MCP",
   "description": "MCP server for VK Ads (VK Реклама) API: manage ad plans, ad groups, banners, and statistics.",
   "websiteUrl": "https://github.com/askads/mcp-vk-ads#readme",
   "repository": {
