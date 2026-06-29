@@ -2,6 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/mcp-vk-ads)](https://www.npmjs.com/package/mcp-vk-ads)
 [![CI](https://github.com/askads/mcp-vk-ads/actions/workflows/ci.yml/badge.svg)](https://github.com/askads/mcp-vk-ads/actions/workflows/ci.yml)
+[![Glama](https://glama.ai/mcp/servers/askads/mcp-vk-ads/badges/score.svg)](https://glama.ai/mcp/servers/askads/mcp-vk-ads)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 MCP-сервер для **VK Ads (VK Реклама)**: управляйте рекламой из Claude, Cursor, Codex и других AI-клиентов на естественном языке.
