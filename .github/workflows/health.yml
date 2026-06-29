@@ -1,19 +1,19 @@
 name: Health check
 
-# End-to-end read-only check against the real VK Ads account.
+# End-to-end read-only check against VK Ads, using a DEDICATED CI-only VK app.
 #
-# Self-refreshing auth: VK Ads access tokens are short-lived, so instead of storing a
-# static token (which would expire and red-flag the check falsely), we mint a fresh
-# one each run via the client_credentials grant (own account) from client_id/secret.
-# Docs: https://target.vk.ru/help/advertisers/api_authorization
+# VK access tokens live ~24h and there's a cap of 5 active tokens per user, so we never
+# store one: each run mints a fresh own-account token (client_credentials), runs the
+# read-only smoke (user.json + throttling + ad_plans — NO writes), then REVOKES the token
+# (oauth2/token/delete by username) so we never accumulate toward the cap. Because revoke
+# wipes ALL of that user's tokens, the client_id/secret MUST belong to a dedicated CI-only
+# app — do not point these secrets at an app whose tokens are used elsewhere.
 #
-# smoke makes NO writes (user.json + throttling + ad_plans). Runs daily and on push to
-# main; never on pull_request, so the secrets are not exposed to PRs/forks.
+# Runs daily + manual dispatch only (never on push/PR): keeps minting to ~1/day, well under
+# the 5-token cap, and never exposes the secrets to PRs or forks.
 on:
   schedule:
     - cron: "0 7 * * *"
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -34,23 +34,46 @@ jobs:
           node-version: 20.x
           cache: npm
       - run: npm ci
-      - name: Mint own-account token (client_credentials) + read-only smoke
-        # Secrets are passed via env (never interpolated into the shell) and the minted
-        # token is masked before use — no injection surface, no token in logs/outputs.
-        run: |
-          set -euo pipefail
-          ACCESS_TOKEN=$(curl -sS -X POST "https://ads.vk.com/api/v2/oauth2/token.json" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            --data-urlencode "grant_type=client_credentials" \
-            --data-urlencode "client_id=$VK_CLIENT_ID" \
-            --data-urlencode "client_secret=$VK_CLIENT_SECRET" \
-            | jq -r '.access_token // empty')
-          if [ -z "$ACCESS_TOKEN" ]; then
-            echo "Failed to obtain a VK Ads access token (client_credentials)."
-            exit 1
-          fi
-          echo "::add-mask::$ACCESS_TOKEN"
-          VK_ADS_TOKEN="$ACCESS_TOKEN" npm run smoke
+      - name: Mint token (client_credentials) → read-only smoke → revoke
+        # Secrets go via env (never interpolated into the shell); the minted token is
+        # masked. On mint failure we surface VK's error body (no token present) for triage.
         env:
           VK_CLIENT_ID: ${{ secrets.VK_ADS_CLIENT_ID }}
           VK_CLIENT_SECRET: ${{ secrets.VK_ADS_CLIENT_SECRET }}
+          API_BASE: https://ads.vk.com/api
+        run: |
+          set -euo pipefail
+
+          # 1. Mint a fresh access token (client_credentials = own account).
+          MINT_CODE=$(curl -sS -o mint.json -w '%{http_code}' -X POST "$API_BASE/v2/oauth2/token.json" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "client_id=$VK_CLIENT_ID" \
+            --data-urlencode "client_secret=$VK_CLIENT_SECRET")
+          ACCESS_TOKEN=$(jq -r '.access_token // empty' mint.json)
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "VK token mint FAILED (HTTP $MINT_CODE):"
+            jq -c '{error, error_description, error_code, message}' mint.json 2>/dev/null || cat mint.json
+            exit 1
+          fi
+          echo "::add-mask::$ACCESS_TOKEN"
+
+          # 2. Resolve own username — needed to revoke the token afterwards.
+          USERNAME=$(curl -sS "$API_BASE/v3/user.json?fields=username" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" | jq -r '.username // empty' || true)
+
+          # 3. Always revoke the minted token on exit. Safe only on a dedicated CI app:
+          #    revoke wipes ALL of this user's active tokens (by username), but only CI
+          #    uses this app. A failed/empty username just skips revoke (token dies in 24h).
+          revoke() {
+            [ -n "${USERNAME:-}" ] || { echo "No username resolved; skipping revoke (token expires in ~24h)."; return; }
+            curl -sS -X POST "$API_BASE/v2/oauth2/token/delete.json" \
+              --data-urlencode "client_id=$VK_CLIENT_ID" \
+              --data-urlencode "client_secret=$VK_CLIENT_SECRET" \
+              --data-urlencode "username=$USERNAME" >/dev/null \
+              && echo "Revoked CI token for $USERNAME." || echo "warning: token revoke failed."
+          }
+          trap revoke EXIT
+
+          # 4. Read-only smoke (no writes). A failure here fails the job; revoke still runs.
+          VK_ADS_TOKEN="$ACCESS_TOKEN" npm run smoke
