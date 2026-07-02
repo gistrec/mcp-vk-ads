@@ -20,6 +20,13 @@ export interface ListPage<T = unknown> {
 /** Largest page size the VK Ads list endpoints accept. */
 export const MAX_PAGE_LIMIT = 250;
 
+/**
+ * Hard cap on the number of objects an autopaginated response returns, so a huge
+ * account can't produce a megabyte-scale (token-blowing) payload. When hit, the
+ * result is trimmed to this many items and flagged `_truncated`.
+ */
+export const MAX_AUTO_ITEMS = 1000;
+
 export class VkAdsClient {
   private readonly base: string;
   private readonly timeoutMs: number;
@@ -49,12 +56,22 @@ export class VkAdsClient {
     return Math.min(this.retryBaseMs * 2 ** attempt, 30_000);
   }
 
-  /** fetch with an AbortController timeout so a hung connection can't hang the tool forever. */
-  private async fetchWithTimeout(url: string, init: RequestInit, label: string): Promise<Response> {
+  /**
+   * fetch with an AbortController timeout so a hung connection can't hang the tool
+   * forever. The response body is read INSIDE the guarded zone (the timer is only
+   * cleared after `res.text()`), so a slow/drip-fed body is covered by the timeout too.
+   */
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    label: string,
+  ): Promise<{ res: Response; text: string }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      return await fetch(url, { ...init, signal: controller.signal });
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      const text = await res.text();
+      return { res, text };
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         throw new Error(`Request to "${label}" timed out after ${this.timeoutMs}ms`);
@@ -67,6 +84,14 @@ export class VkAdsClient {
 
   private buildUrl(path: string, query?: Record<string, QueryValue>): string {
     const url = new URL(path.replace(/^\//, ""), this.base);
+    // SSRF guard: an absolute path ("https://evil/x", "http://evil/x" or the
+    // backslash form "\evil/x") would override `base` and send our Bearer token to
+    // a foreign host. Refuse anything that resolves off the API origin.
+    if (url.origin !== new URL(this.base).origin) {
+      throw new Error(
+        `raw_request path must be a relative API path (resolved to foreign origin ${url.origin})`,
+      );
+    }
     if (query) {
       for (const [key, value] of Object.entries(query)) {
         if (value === undefined || value === "") continue;
@@ -78,27 +103,42 @@ export class VkAdsClient {
 
   /**
    * Issues a request to a VK Ads endpoint (path includes the version segment,
-   * e.g. "v2/ad_plans.json") and returns the parsed JSON body. Retries 429 and
-   * 5xx with backoff; any other non-2xx status throws a {@link VkAdsError}.
+   * e.g. "v2/ad_plans.json") and returns the parsed JSON body. Retries with backoff;
+   * any other non-2xx status throws a {@link VkAdsError}.
+   *
+   * Retry policy: 429 is retried for ANY method (the request wasn't processed). 5xx
+   * and network errors/timeouts are retried ONLY for idempotent GETs — a 502/504
+   * after a POST may have committed (create), so replaying it risks a duplicate.
    */
   async request<T = unknown>(method: HttpMethod, path: string, opts: RequestOptions = {}): Promise<T> {
     const url = this.buildUrl(path, opts.query);
     const hasBody = opts.body !== undefined && method !== "GET";
+    const idempotent = method === "GET";
 
     for (let attempt = 0; ; attempt++) {
-      const res = await this.fetchWithTimeout(
-        url,
-        {
-          method,
-          headers: this.headers(hasBody ? { "Content-Type": "application/json" } : undefined),
-          body: hasBody ? JSON.stringify(opts.body) : undefined,
-        },
-        path,
-      );
+      let res: Response;
+      let text: string;
+      try {
+        ({ res, text } = await this.fetchWithTimeout(
+          url,
+          {
+            method,
+            headers: this.headers(hasBody ? { "Content-Type": "application/json" } : undefined),
+            body: hasBody ? JSON.stringify(opts.body) : undefined,
+          },
+          path,
+        ));
+      } catch (err) {
+        // Network error / timeout: retry only idempotent (GET) requests; a non-GET
+        // may have already reached the backend, so replaying it is unsafe.
+        if (idempotent && attempt < this.maxRetries) {
+          await delay(this.backoffMs(attempt));
+          continue;
+        }
+        throw err;
+      }
 
-      const text = await res.text();
-
-      const transient = res.status === 429 || (res.status >= 500 && res.status < 600);
+      const transient = res.status === 429 || (idempotent && res.status >= 500 && res.status < 600);
       if (transient && attempt < this.maxRetries) {
         await delay(this.backoffMs(attempt, res));
         continue;
@@ -139,11 +179,16 @@ export class VkAdsClient {
    * Carries through `total` (statistics: the summary across ALL objects — same on
    * every page). If the maxPages cap is hit with more remaining, flags `_truncated`
    * so the cutoff is explicit, not a silent items.length < count.
+   *
+   * `maxItems` caps the total returned objects (default {@link MAX_AUTO_ITEMS}) to keep
+   * model-facing payloads token-bounded; pass `Infinity` for internal full-dictionary
+   * fetches (e.g. get_regions) that filter locally and only return a small slice.
    */
   async getAll<T = unknown>(
     path: string,
     query: Record<string, QueryValue> = {},
     maxPages = 100,
+    maxItems = MAX_AUTO_ITEMS,
   ): Promise<ListPage<T> & { total?: unknown; _truncated?: boolean; _truncatedNote?: string }> {
     const limit = MAX_PAGE_LIMIT;
     let offset = Number(query.offset ?? 0);
@@ -159,9 +204,16 @@ export class VkAdsClient {
       count = typeof data.count === "number" ? data.count : items.length;
       if (data.total !== undefined) total = data.total;
       offset += batch.length;
+      if (items.length >= maxItems) {
+        truncated = true; // response-size cap: keep the payload token-bounded
+        break;
+      }
       if (batch.length === 0 || batch.length < limit || offset >= count) break;
-      if (page === maxPages - 1) truncated = true; // more remains but the cap stopped us
+      if (page === maxPages - 1) truncated = true; // more remains but the page cap stopped us
     }
+
+    // Trim any overshoot from the last batch so we return at most `maxItems`.
+    if (items.length > maxItems) items.length = maxItems;
 
     const result: ListPage<T> & { total?: unknown; _truncated?: boolean; _truncatedNote?: string } = {
       count,
@@ -171,17 +223,11 @@ export class VkAdsClient {
     if (truncated) {
       result._truncated = true;
       result._truncatedNote =
-        `Stopped at the ${maxPages}-page cap; returned ${items.length} of ${count} objects. ` +
-        "Filter by ids or narrow the period to get the rest.";
+        `Truncated: returned the first ${items.length} of ${count} objects ` +
+        `(page/response-size cap). Filter by ids or narrow the period to get the rest.`;
     }
     return result;
   }
-}
-
-/** Clamps a requested page size into the 1..MAX_PAGE_LIMIT range the API accepts. */
-export function clampLimit(limit: number): number {
-  if (!Number.isFinite(limit) || limit < 1) return MAX_PAGE_LIMIT;
-  return Math.min(Math.floor(limit), MAX_PAGE_LIMIT);
 }
 
 function delay(ms: number): Promise<void> {

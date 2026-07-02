@@ -45,13 +45,17 @@ test("every tool declares annotations with openWorldHint", () => {
   }
 });
 
-test("read tools are read-only", () => {
+test("read tools are read-only with all four hints set", () => {
   const readTools = [
     "get_user_info", "get_throttling", "get_regions",
     "list_ad_plans", "list_ad_groups", "list_banners", "get_statistics",
   ];
   for (const name of readTools) {
     assert.equal(ANN[name]?.readOnlyHint, true, `${name} should be readOnly`);
+    // Some MCP clients require every hint on every tool, so reads set all four.
+    assert.equal(ANN[name]?.destructiveHint, false, `${name} should not be destructive`);
+    assert.equal(ANN[name]?.idempotentHint, true, `${name} should be idempotent`);
+    assert.equal(ANN[name]?.openWorldHint, true, `${name} should set openWorldHint`);
   }
 });
 

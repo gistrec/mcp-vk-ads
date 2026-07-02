@@ -18,9 +18,11 @@ More detail in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Tool list: [docs/TOOL
 ## Architecture
 
 - `src/client.ts` — HTTP client over `https://ads.vk.com/api` (override with
-  `VK_ADS_API_BASE`): Bearer auth, AbortController timeout, retry/backoff on 429 + 5xx
-  (honors `Retry-After`), `getAll` offset/count pagination, `VkAdsError(status, body)`.
-  No sandbox, no quota header, no async report polling.
+  `VK_ADS_API_BASE`): Bearer auth, AbortController timeout (covers reading the body),
+  SSRF guard (`buildUrl` refuses a path resolving off the API origin), retry/backoff
+  (honors `Retry-After`) — 429 for any method, but 5xx and network errors ONLY for
+  idempotent GET (a retried POST could duplicate a create), `getAll` offset/count
+  pagination, `VkAdsError(status, body)`. No sandbox, no quota header, no async report polling.
 - `src/tools/*.ts` — one file per area (`account`, `adPlans`, `adGroups`, `banners`,
   `statistics`, `raw`), each exports `register<Name>Tools(server, client)`.
 - `src/tools/util.ts` — shared helpers (see conventions below).
@@ -36,10 +38,12 @@ More detail in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Tool list: [docs/TOOL
   whole result as `isError`.
 - **`raw_request` is read-gated by HTTP method:** GET runs freely; any POST/DELETE is a
   write and requires `confirmWrite=true` (`isReadMethod` is true only for GET).
-- **Validate inputs with zod** in `inputSchema` (dates via the shared `isoDate`).
-- **Pagination:** single-page tools clamp to `MAX_PAGE_LIMIT` (250) with `clampLimit`;
-  `autoPaginate` uses `getAll` at `MAX_PAGE_LIMIT` and flags `_truncated` instead of
-  silently cutting.
+- **Validate inputs with zod** in `inputSchema` (dates via the `isoDate()` factory —
+  a fresh schema per field, so the generated JSON schema has no shared `$ref`).
+- **Pagination:** single-page tools cap `limit` at `MAX_PAGE_LIMIT` (250) via zod
+  (`.max(250)` in `inputSchema`); `autoPaginate` uses `getAll` at `MAX_PAGE_LIMIT`,
+  caps the total at `MAX_AUTO_ITEMS` (token-bounded payload) and flags `_truncated`
+  instead of silently cutting.
 - **Runtime guidance for the consuming model goes in the tool `description`,** not in this
   file — the external agent never reads CLAUDE.md. API gotchas belong in the tool's description.
 

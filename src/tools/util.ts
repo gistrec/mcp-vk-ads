@@ -2,13 +2,20 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { VkAdsClient } from "../client.js";
 
-/** A date in YYYY-MM-DD form, validated before the request reaches the API. */
-export const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a date in YYYY-MM-DD format");
+/**
+ * A date in YYYY-MM-DD form, validated before the request reaches the API.
+ *
+ * A factory (not a shared instance) so each `inputSchema` gets its own zod object —
+ * reusing one instance makes the SDK emit a `$ref` to a shared definition in the
+ * generated JSON schema, which some MCP clients don't dereference. Call `isoDate()`.
+ */
+export const isoDate = () =>
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a date in YYYY-MM-DD format");
 
 export function ok(data: unknown): CallToolResult {
-  const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  // Compact JSON (no pretty-print) to save tokens; `?? "null"` guards against
+  // JSON.stringify(undefined) returning undefined rather than a string.
+  const text = typeof data === "string" ? data : JSON.stringify(data) ?? "null";
   return { content: [{ type: "text", text }] };
 }
 
@@ -34,7 +41,14 @@ export function compact<T extends Record<string, unknown>>(obj: T): T {
  *   WRITE_UPDATE — update tools; re-applying the same input is idempotent.
  *   WRITE_DELETE — *_action tools (can set status=deleted) and raw_request.
  */
-export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
+// All four hints are set explicitly — some clients (e.g. the OpenAI Apps review)
+// require destructiveHint/openWorldHint on every tool, not just the write ones.
+export const READ_ONLY = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
 export const WRITE_CREATE = {
   readOnlyHint: false,
   destructiveHint: false,
@@ -93,7 +107,7 @@ export async function setStatusForIds(
       results.push({ id, ok: false, error: e instanceof Error ? e.message : String(e) });
     }
   }
-  const body = JSON.stringify(results, null, 2);
+  const body = JSON.stringify(results);
   if (failed === 0) return ok(body);
   return {
     content: [{ type: "text", text: `${failed} of ${ids.length} object(s) failed:\n${body}` }],

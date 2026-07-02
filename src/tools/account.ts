@@ -3,7 +3,14 @@ import { z } from "zod";
 import type { VkAdsClient } from "../client.js";
 import { fail, ok, READ_ONLY } from "./util.js";
 
+type Region = { id: number; name: string; type: string };
+
 export function registerAccountTools(server: McpServer, client: VkAdsClient): void {
+  // The region dictionary is static within a process, so fetch it once and reuse it
+  // across get_regions calls. (In per-request MCP hosts the cache dies with the
+  // request; for standalone/long-lived clients it saves the full re-download.)
+  let regionsCache: Region[] | undefined;
+
   server.registerTool(
     "get_user_info",
     {
@@ -71,14 +78,24 @@ export function registerAccountTools(server: McpServer, client: VkAdsClient): vo
     },
     async ({ query, limit }) => {
       try {
-        const { items } = await client.getAll<{ id: number; name: string; type: string }>(
-          "v2/regions.json",
-          { fields: "id,name,type" },
-        );
+        if (!regionsCache) {
+          // Fetch the FULL geo dictionary (opt out of MAX_AUTO_ITEMS): we filter
+          // locally and return only a small slice, so the model-facing item cap would
+          // just silently drop searchable regions (VK's dictionary exceeds 1000).
+          const { items } = await client.getAll<Region>(
+            "v2/regions.json",
+            { fields: "id,name,type" },
+            100,
+            Number.POSITIVE_INFINITY,
+          );
+          regionsCache = items;
+        }
         const needle = query?.trim().toLowerCase();
         const filtered = needle
-          ? items.filter((r) => typeof r.name === "string" && r.name.toLowerCase().includes(needle))
-          : items;
+          ? regionsCache.filter(
+              (r) => typeof r.name === "string" && r.name.toLowerCase().includes(needle),
+            )
+          : regionsCache;
         return ok(filtered.slice(0, limit ?? 50));
       } catch (e) {
         return fail(e);

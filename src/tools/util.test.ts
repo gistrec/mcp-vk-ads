@@ -25,10 +25,16 @@ test("ACTION_TO_STATUS maps verbs to VK Ads statuses", () => {
   assert.equal(ACTION_TO_STATUS.delete, "deleted");
 });
 
-test("ok serializes objects and passes strings through", () => {
+test("ok serializes objects as compact JSON and passes strings through", () => {
   assert.equal(text(ok("hi")), "hi");
-  assert.equal(text(ok({ a: 1 })), JSON.stringify({ a: 1 }, null, 2));
+  assert.equal(text(ok({ a: 1 })), JSON.stringify({ a: 1 })); // compact, no pretty-print
+  assert.equal(text(ok({ a: 1, b: 2 })), '{"a":1,"b":2}');
   assert.equal(ok("x").isError, undefined);
+});
+
+test("ok emits the string \"null\" when JSON.stringify yields undefined", () => {
+  // JSON.stringify(undefined) === undefined, which would break the content text.
+  assert.equal(text(ok(undefined)), "null");
 });
 
 test("fail marks the result as an error and keeps the message", () => {

@@ -24,8 +24,8 @@ export function registerStatisticsTools(server: McpServer, client: VkAdsClient):
           .array(z.number().int())
           .optional()
           .describe("Limit the report to these object ids (of the chosen entity)."),
-        dateFrom: isoDate.optional().describe("Start date YYYY-MM-DD (required for day/week/month)."),
-        dateTo: isoDate.optional().describe("End date YYYY-MM-DD (required for day/week/month)."),
+        dateFrom: isoDate().optional().describe("Start date YYYY-MM-DD (required for day/week/month)."),
+        dateTo: isoDate().optional().describe("End date YYYY-MM-DD (required for day/week/month)."),
         metrics: z
           .array(z.string())
           .optional()

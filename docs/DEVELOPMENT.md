@@ -1,6 +1,6 @@
 # Разработка
 
-Требования: Node.js 18+.
+Требования: Node.js 20+.
 
 ```bash
 npm install
@@ -38,4 +38,4 @@ VK_ADS_TOKEN=ваш_токен npm run smoke
 
 ## CI
 
-GitHub Actions прогоняет `typecheck` + `build` + `test` на Node 18/20/22 при push и pull request.
+GitHub Actions прогоняет `typecheck` + `build` + `test` на Node 20/22/24 при push и pull request.

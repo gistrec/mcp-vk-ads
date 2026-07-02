@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { VkAdsClient, clampLimit, MAX_PAGE_LIMIT } from "./client.js";
+import { VkAdsClient, MAX_PAGE_LIMIT, MAX_AUTO_ITEMS } from "./client.js";
 import { VkAdsError } from "./types.js";
 
 const BASE = "https://ads.vk.com/api";
@@ -205,7 +205,7 @@ test("request() retries a 429 rate limit then returns the result", async () => {
   }
 });
 
-test("request() retries a 5xx then returns the result", async () => {
+test("request() retries a 5xx on a GET then returns the result", async () => {
   let calls = 0;
   const mock = mockFetch(() => {
     calls++;
@@ -218,6 +218,66 @@ test("request() retries a 5xx then returns the result", async () => {
     assert.equal(calls, 2);
   } finally {
     mock.restore();
+  }
+});
+
+test("request() does NOT retry a 5xx on a POST (avoids duplicate writes)", async () => {
+  let calls = 0;
+  const mock = mockFetch(() => {
+    calls++;
+    return new Response("bad gateway", { status: 502 });
+  });
+  try {
+    // A 502/504 after a create may have committed; replaying it risks a duplicate.
+    await assert.rejects(() => makeClient().post("v2/ad_plans.json", { name: "X" }), /HTTP 502/);
+    assert.equal(calls, 1); // one attempt, no retry
+  } finally {
+    mock.restore();
+  }
+});
+
+test("request() retries a 429 on a POST (request was not processed)", async () => {
+  let calls = 0;
+  const mock = mockFetch(() => {
+    calls++;
+    if (calls === 1) return new Response("slow down", { status: 429 });
+    return new Response(JSON.stringify({ id: 1 }), { status: 200 });
+  });
+  try {
+    const result = await makeClient().post("v2/ad_plans.json", { name: "X" });
+    assert.deepEqual(result, { id: 1 });
+    assert.equal(calls, 2);
+  } finally {
+    mock.restore();
+  }
+});
+
+test("request() retries a network error on a GET, then gives up on a POST", async () => {
+  let calls = 0;
+  const mock = mockFetch(() => {
+    calls++;
+    if (calls === 1) throw Object.assign(new Error("ECONNRESET"), { code: "ECONNRESET" });
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  });
+  try {
+    const result = await makeClient().get("v2/ad_plans.json");
+    assert.deepEqual(result, { ok: true });
+    assert.equal(calls, 2); // errored once, retried, succeeded
+  } finally {
+    mock.restore();
+  }
+
+  calls = 0;
+  const mock2 = mockFetch(() => {
+    calls++;
+    throw Object.assign(new Error("ECONNRESET"), { code: "ECONNRESET" });
+  });
+  try {
+    // A non-GET network error is not retried (the write may have landed).
+    await assert.rejects(() => makeClient().post("v2/ad_plans.json", { name: "X" }), /ECONNRESET/);
+    assert.equal(calls, 1);
+  } finally {
+    mock2.restore();
   }
 });
 
@@ -264,9 +324,53 @@ test("request() aborts and reports a timeout when the request hangs", async () =
   }
 });
 
-test("clampLimit keeps values within 1..MAX_PAGE_LIMIT", () => {
-  assert.equal(clampLimit(50), 50);
-  assert.equal(clampLimit(0), MAX_PAGE_LIMIT);
-  assert.equal(clampLimit(99999), MAX_PAGE_LIMIT);
-  assert.equal(clampLimit(NaN), MAX_PAGE_LIMIT);
+test("request() refuses an absolute path that resolves to a foreign origin (SSRF)", async () => {
+  for (const evil of [
+    "https://evil.example/steal",
+    "http://evil.example/x",
+    "\\\\evil.example/x", // "\\evil.example/x": WHATWG URL treats "\\" like "//" for http(s)
+  ]) {
+    const mock = mockFetch(() => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    try {
+      await assert.rejects(
+        () => makeClient().get(evil),
+        /foreign origin/,
+        `expected "${evil}" to be rejected`,
+      );
+      // Crucially, the Bearer token never left for the foreign host.
+      assert.equal(mock.calls.length, 0, `expected no fetch for "${evil}"`);
+    } finally {
+      mock.restore();
+    }
+  }
+});
+
+test("request() still allows a normal relative API path", async () => {
+  const mock = mockFetch(() => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+  try {
+    await makeClient().get("v2/ad_plans.json");
+    assert.equal(mock.calls[0].url, "https://ads.vk.com/api/v2/ad_plans.json");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("getAll() caps the total items at MAX_AUTO_ITEMS and flags truncation", async () => {
+  let calls = 0;
+  const mock = mockFetch(() => {
+    calls++;
+    // Always a full page with far more remaining than the item cap allows.
+    const items = Array.from({ length: MAX_PAGE_LIMIT }, (_, i) => ({ id: i }));
+    return new Response(JSON.stringify({ count: 100000, items }), { status: 200 });
+  });
+  try {
+    const result = await makeClient().getAll("v2/banners.json");
+    assert.equal(result.items.length, MAX_AUTO_ITEMS);
+    assert.equal((result as { _truncated?: boolean })._truncated, true);
+    assert.match((result as { _truncatedNote?: string })._truncatedNote ?? "", /of 100000/);
+    // Stopped by the item cap, not the 100-page default cap.
+    assert.equal(calls, Math.ceil(MAX_AUTO_ITEMS / MAX_PAGE_LIMIT));
+  } finally {
+    mock.restore();
+  }
 });

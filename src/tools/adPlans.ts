@@ -81,8 +81,8 @@ export function registerAdPlanTools(server: McpServer, client: VkAdsClient): voi
         budgetLimit: z.number().positive().optional().describe("Total budget in account currency."),
         budgetLimitDay: z.number().positive().optional().describe("Daily budget in account currency."),
         maxPrice: z.number().positive().optional().describe("Bid cap in account currency."),
-        dateStart: isoDate.optional().describe("Start date YYYY-MM-DD."),
-        dateEnd: isoDate.optional().describe("End date YYYY-MM-DD."),
+        dateStart: isoDate().optional().describe("Start date YYYY-MM-DD."),
+        dateEnd: isoDate().optional().describe("End date YYYY-MM-DD."),
         extra: z
           .record(z.any())
           .optional()
@@ -123,7 +123,7 @@ export function registerAdPlanTools(server: McpServer, client: VkAdsClient): voi
         budgetLimit: z.number().positive().optional().describe("Total budget in account currency."),
         budgetLimitDay: z.number().positive().optional().describe("Daily budget in account currency."),
         maxPrice: z.number().positive().optional().describe("Bid cap in account currency."),
-        dateEnd: isoDate.optional().describe("New end date YYYY-MM-DD."),
+        dateEnd: isoDate().optional().describe("New end date YYYY-MM-DD."),
         extra: z.record(z.any()).optional().describe("Extra fields merged into the body verbatim."),
       },
     },
